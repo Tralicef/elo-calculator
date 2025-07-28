@@ -151,7 +151,7 @@ def proximo_partido(
     jugadores_disponibles,
     historial_path="data.csv",
     min_partidos=2,
-    jugadores_por_equipo=7,
+    jugadores_por_equipo=8,
 ):
     """
     Prepara el próximo partido con los jugadores disponibles.
@@ -216,6 +216,8 @@ if __name__ == "__main__":
         "Ponja",
         "René",
         "Fede",
+        "Juan C",
+        "Walter"
     ]
 
     # Preparar próximo partido

@@ -1,0 +1,27 @@
+{
+  "jugadores_disponibles": [
+    "Franco",
+    "Leo",
+    "José MB",
+    "Fer MB",
+    "Gonza",
+    "José A",
+    "Juan C",
+    "Ponja",
+    "Nacho",
+    "Hernán",
+    "Gael",
+    "René",
+    "Fede",
+    "Santi A",
+    "Walter",
+    "Nacho R"
+  ],
+  "restricciones_mismo_equipo": [
+  ],
+  "restricciones_distinto_equipo": [
+  ],
+  "jugadores_por_equipo": 8,
+  "min_partidos_ranking": 5,
+  "historial_path": "data.csv"
+}

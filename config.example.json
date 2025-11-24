@@ -1,0 +1,47 @@
+{
+  "_comentario": "Este es un archivo de ejemplo. Copia este archivo a 'config.json' y ajusta los valores según tus necesidades.",
+  
+  "jugadores_disponibles": [
+    "Franco",
+    "Walter",
+    "Fede",
+    "José MB",
+    "Fer MB",
+    "Gonza",
+    "José A",
+    "Hernán",
+    "Fer F",
+    "Santi DLV",
+    "Ponja",
+    "Nacho",
+    "Diego",
+    "Gael",
+    "René",
+    "Juan C"
+  ],
+  
+  "restricciones_mismo_equipo": [
+    ["Franco", "Walter"]
+  ],
+  
+  "restricciones_distinto_equipo": [
+    ["Franco", "Hernán"],
+    ["Fede", "Nacho"]
+  ],
+  
+  "jugadores_por_equipo": 8,
+  
+  "min_partidos_ranking": 5,
+  
+  "historial_path": "data.csv",
+  
+  "_ayuda": {
+    "jugadores_disponibles": "Lista de nombres de jugadores disponibles para el próximo partido",
+    "restricciones_mismo_equipo": "Lista de grupos de jugadores que DEBEN jugar juntos en el mismo equipo. Cada grupo es una lista de nombres. Ejemplo: [['Jugador1', 'Jugador2'], ['Jugador3', 'Jugador4']]",
+    "restricciones_distinto_equipo": "Lista de grupos de jugadores que DEBEN estar en equipos DIFERENTES (separados). Útil para separar jugadores muy fuertes o crear más balance. Ejemplo: [['Jugador1', 'Jugador2'], ['Jugador3', 'Jugador4']]",
+    "jugadores_por_equipo": "Número de jugadores por equipo (el total de jugadores disponibles debe ser el doble)",
+    "min_partidos_ranking": "Número mínimo de partidos jugados para aparecer en el ranking",
+    "historial_path": "Ruta al archivo CSV con el historial de partidos"
+  }
+}
+

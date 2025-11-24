@@ -148,13 +148,13 @@ def render_stats_jugador(df: pd.DataFrame, data_path: Path) -> None:
         st.info("No hay pares con suficiente muestra.")
     else:
         df_pares = pd.DataFrame(pares).sort_values(
-            ["Win juntos %", "Partidos"], ascending=[False, False]
+            ["Juntos %", "Partidos"], ascending=[False, False]
         )
         st.caption("Top afinidad")
         st.dataframe(df_pares.head(5).reset_index(drop=True), use_container_width=True)
         st.caption("Menor afinidad")
         st.dataframe(
-            df_pares.sort_values(["Win juntos %", "Partidos"], ascending=[True, False])
+            df_pares.sort_values(["Juntos %", "Partidos"], ascending=[True, False])
             .head(5)
             .reset_index(drop=True),
             use_container_width=True,
@@ -229,6 +229,8 @@ def render_ranking(df: pd.DataFrame, min_partidos: int, data_path: Path) -> None
     )
     df_rank["Win %"] = (df_rank["Victorias"] / df_rank["Partidos"].clip(lower=1)) * 100
     df_rank["Win %"] = df_rank["Win %"].round(1)
+    df_rank.index = range(1, len(df_rank) + 1)
+    df_rank.index.name = "#"
     st.dataframe(df_rank, use_container_width=True)
 
 
@@ -285,7 +287,7 @@ def obtener_pares_por_jugador(df: pd.DataFrame, jugador: str, min_partidos: int)
         if total < min_partidos:
             continue
         porcentaje = round(matriz_num[idx][j], 1) if matriz_num[idx][j] == matriz_num[idx][j] else 0.0
-        pares.append({"Con": otro, "Juntos/partidos": frac, "Partidos": total, "Win juntos %": porcentaje})
+        pares.append({"Con": otro, "Juntos/partidos": frac, "Partidos": total, "Juntos %": porcentaje})
     return pares
 
 
@@ -419,33 +421,42 @@ def render_graficos() -> None:
     min_partidos = st.slider("Mínimo de partidos para mostrar en matriz ponderada", 1, 10, 10)
 
     # Matriz ponderada: veces juntos / veces mismo partido
-    partidos_por_jugador, combinaciones_partidos = procesar_datos_partidos(str(data_path))
-    jugadores_filtrados = [
-        j for j, cnt in partidos_por_jugador.items() if cnt >= min_partidos
-    ]
-    if not jugadores_filtrados:
-        st.info("No hay suficientes partidos para generar la matriz ponderada.")
-    else:
-        matriz_texto, matriz_num = crear_matriz_ponderada_correcta(
-            partidos_por_jugador, combinaciones_partidos, jugadores_filtrados
-        )
-        df_heat = pd.DataFrame(matriz_num, index=jugadores_filtrados, columns=jugadores_filtrados)
-        fig, ax = plt.subplots(figsize=(10, 7))
-        sns.heatmap(
-            df_heat,
-            annot=matriz_texto,
-            fmt="",
-            cmap="Blues",
-            cbar_kws={"label": "% veces en mismo equipo"},
-            ax=ax,
-            linewidths=0.5,
-            linecolor="white",
-        )
-        ax.set_title("Matriz ponderada (juntos / mismo partido)")
-        plt.xticks(rotation=45, ha="right")
-        plt.yticks(rotation=0)
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
+    with st.spinner("Calculando matriz ponderada..."):
+        try:
+            partidos_por_jugador, combinaciones_partidos = procesar_datos_partidos(str(data_path))
+            st.caption(
+                f"Partidos: {len(df)}, jugadores con datos: {len(partidos_por_jugador)}, combinaciones: {len(combinaciones_partidos)}"
+            )
+            jugadores_filtrados = [
+                j for j, cnt in partidos_por_jugador.items() if cnt >= min_partidos
+            ]
+            st.caption(f"Jugadores en matriz (min {min_partidos}): {len(jugadores_filtrados)}")
+            if not jugadores_filtrados:
+                st.info("No hay suficientes partidos para generar la matriz ponderada.")
+            else:
+                matriz_texto, matriz_num = crear_matriz_ponderada_correcta(
+                    partidos_por_jugador, combinaciones_partidos, jugadores_filtrados
+                )
+                df_heat = pd.DataFrame(matriz_num, index=jugadores_filtrados, columns=jugadores_filtrados)
+                fig, ax = plt.subplots(figsize=(10, 7))
+                sns.heatmap(
+                    df_heat,
+                    annot=matriz_texto,
+                    fmt="",
+                    cmap="Blues",
+                    cbar_kws={"label": "% veces en mismo equipo"},
+                    ax=ax,
+                    linewidths=0.5,
+                    linecolor="white",
+                )
+                ax.set_title("Matriz ponderada (juntos / mismo partido)")
+                plt.xticks(rotation=45, ha="right")
+                plt.yticks(rotation=0)
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig)
+                st.success("Matriz ponderada generada.")
+        except Exception as exc:
+            st.error(f"No se pudo generar la matriz ponderada: {exc}")
 
     st.markdown("---")
     st.subheader("Rendimiento de grupos")
@@ -453,11 +464,15 @@ def render_graficos() -> None:
 
     for size, label in [(2, "Duplas"), (3, "Tríos"), (4, "Cuartetos")]:
         st.markdown(f"**{label}**")
-        stats = calcular_rendimiento_grupos(df, size, min_grupo)
-        if stats.empty:
-            st.info(f"Sin {label.lower()} con al menos {min_grupo} partidos.")
-            continue
-        mostrar_top_bottom(stats, f"{label} por winrate")
+        with st.spinner(f"Calculando {label.lower()}..."):
+            try:
+                stats = calcular_rendimiento_grupos(df, size, min_grupo)
+                if stats.empty:
+                    st.info(f"Sin {label.lower()} con al menos {min_grupo} partidos.")
+                    continue
+                mostrar_top_bottom(stats, f"{label} por winrate")
+            except Exception as exc:
+                st.error(f"No se pudieron calcular {label.lower()}: {exc}")
 
 
 def render_agregar_data(df: pd.DataFrame, data_path: Path) -> None:
@@ -506,7 +521,6 @@ def main() -> None:
             "Ranking",
             "Stats jugador",
             "Armar equipos",
-            "Gráficos",
             "Agregar data",
         ]
     )
@@ -520,8 +534,6 @@ def main() -> None:
     with tabs[3]:
         render_equipos(df, data_path)
     with tabs[4]:
-        render_graficos()
-    with tabs[5]:
         render_agregar_data(df, data_path)
 
 

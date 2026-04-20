@@ -1,35 +1,44 @@
 Fecha,Equipo1,Equipo2,Ganador
-14/04/2025,Hernán;Nacho;Gael;René;Diego;José MB;Franco,Santi DLV;José A;Fede;Negro;Leandro;Fer MB;Ponja,Equipo1
-21/04/2025,Leo;Nacho;Ponja;Franco;Santi DLV;José MB;Gael,Adrián;Diego;Fede;Hernán;René;Fer MB;José A,Equipo2
-28/4/2025,Santi A;Franco;Fede;José MB;René;Nacho;Hernán,Leo;Diego;Ponja;Fer MB;Adrián;José A;Santi DLV,Equipo1
-5/5/2025,Hernán;Walter;Nacho;Santi DLV;Franco;Gonza;José MB;Leo,René;Ponja;Gael;José A;Fede;Diego;Santi A;Fer MB,Equipo1
-12/5/2025,Adrián;René;Nacho;Gael;Santi A;Diego;Fer MB,Hernán;Ponja;Franco;José A;Leo;Fede;José MB,Equipo2
-19/5/2025,Fer F;Hernán;Gael;José A;Santi A;Franco;Adrián;Javi,René;Ponja;Nacho;Santi DLV;Fer MB;José MB;Diego;Fede,Equipo1
+14/04/2025,Hernán;Nacho F;Gael;René;Diego;José MB;Franco,Santi DLV;José A;Fede;Negro;Leandro;Fer MB;Ponja,Equipo1
+21/04/2025,Leo;Nacho F;Ponja;Franco;Santi DLV;José MB;Gael,Adrián;Diego;Fede;Hernán;René;Fer MB;José A,Equipo2
+28/4/2025,Santi A;Franco;Fede;José MB;René;Nacho F;Hernán,Leo;Diego;Ponja;Fer MB;Adrián;José A;Santi DLV,Equipo1
+5/5/2025,Hernán;Walter;Nacho F;Santi DLV;Franco;Gonza;José MB;Leo,René;Ponja;Gael;José A;Fede;Diego;Santi A;Fer MB,Equipo1
+12/5/2025,Adrián;René;Nacho F;Gael;Santi A;Diego;Fer MB,Hernán;Ponja;Franco;José A;Leo;Fede;José MB,Equipo2
+19/5/2025,Fer F;Hernán;Gael;José A;Santi A;Franco;Adrián;Javier,René;Ponja;Nacho F;Santi DLV;Fer MB;José MB;Diego;Fede,Equipo1
 26/5/2025,Fer MB;José A;Hernán;Ponja;René,Franco;Gael;Maxi;Genaro;Nicolás,Equipo2
-2/6/2025,José MB;René;Santi A;Fede;Franco;Hernán;Gael;Nacho,Fer MB;Walter;Leo;Javi;Diego;Fer F;José A;Nacho R,Equipo1
-9/6/2025,Gael;René;Santi DLV;Nacho;Adrián;Franco;Fer MB;Santi A,Javier;Hernán;Benja;José A;Leo;José MB;Diego;Fede,Equipo1
+2/6/2025,José MB;René;Santi A;Fede;Franco;Hernán;Gael;Nacho,Fer MB;Walter;Leo;Javier;Diego;Fer F;José A;Nacho R,Equipo1
+9/6/2025,Gael;René;Santi DLV;Nacho F;Adrián;Franco;Fer MB;Santi A,Javier;Hernán;Benja;José A;Leo;José MB;Diego;Fede,Equipo1
 16/6/2025,Franco;Ponja;Santi DLV;José MB;Gabi;René;Fede,Fer MB;Gael;Fer F;José A;Hernán;Diego;Nacho,Equipo1
-23/6/2025,Santi A;Nacho;José MB;Fede;Hernán;Santi DLV;René,Franco;Diego;José A;Fer MB;Ponja;Leo;Fer F,Equipo2
-30/6/2025,Franco;Santi DLV;Nacho;Fer MB;René;José A;Walter,Gonza;Fer F;Diego;Ponja;José MB;Gael;Fede,Equipo1
-7/7/2025,Franco;José MB;Fer F;Nacho;Joaco;Ponja;Gabriel Amigo Nacho,Hernán;José A;Gael;Fer MB;René;Diego;Fede,Equipo1
-14/7/2025,René;Ponja;Gael;Gabriel Amigo Nacho;Gonza;Fer MB;José MB;Amigo José A,Hernán;Fer F;José A;Nacho;Diego;Juan C;Fede;Mateo Amigo Nacho,Equipo1
-21/7/2025,Franco;Nacho;Gael;Diego;Fede;Hernán;Gonza,Santi DLV;José MB;Guillo;Fer MB;Ponja;René;Nacho R,Equipo1
-28/7/2025,Franco;Diego;Nacho;Nacho R;Fede;Ponja;Fer MB;Gonza,José A;Walter;Hernán;Santi DLV;Gael;José MB;René;Juan C,Equipo1
-4/8/2025,Franco;José A;Walter;Guillo;Juan C;Gabo;Gael;Hernán,Diego;Nacho;Ponja;René;Fede;José MB;Gonza;Fer MB,Equipo1
-11/8/2025,Diego;Hernán;José MB;Juan C;Gonza F;Fer F;René,Franco;Nacho;Fede;Gael;Gonza;José A;Walter,Equipo1
+23/6/2025,Santi A;Nacho F;José MB;Fede;Hernán;Santi DLV;René,Franco;Diego;José A;Fer MB;Ponja;Leo;Fer F,Equipo2
+30/6/2025,Franco;Santi DLV;Nacho F;Fer MB;René;José A;Walter,Gonza;Fer F;Diego;Ponja;José MB;Gael;Fede,Equipo1
+7/7/2025,Franco;José MB;Fer F;Nacho F;Joaco;Ponja;Gabriel Amigo Nacho,Hernán;José A;Gael;Fer MB;René;Diego;Fede,Equipo1
+14/7/2025,René;Ponja;Gael;Gabriel Amigo Nacho F;Gonza;Fer MB;José MB;Amigo José A,Hernán;Fer F;José A;Nacho F;Diego;Juan C;Fede;Mateo Amigo Nacho,Equipo1
+21/7/2025,Franco;Nacho F;Gael;Diego;Fede;Hernán;Gonza,Santi DLV;José MB;Guillo;Fer MB;Ponja;René;Nacho R,Equipo1
+28/7/2025,Franco;Diego;Nacho F;Nacho R;Fede;Ponja;Fer MB;Gonza,José A;Walter;Hernán;Santi DLV;Gael;José MB;René;Juan C,Equipo1
+4/8/2025,Franco;José A;Walter;Guillo;Juan C;Gabo;Gael;Hernán,Diego;Nacho F;Ponja;René;Fede;José MB;Gonza;Fer MB,Equipo1
+11/8/2025,Diego;Hernán;José MB;Juan C;Gonza F;Fer F;René,Franco;Nacho F;Fede;Gael;Gonza;José A;Walter,Equipo1
 19/8/2025,Walter;José A;Diego;Guillo;Fer MB;Ponja;Nacho R;Nacho,Franco;Hernán;Leo;Fer F;René;Gael;Fede;Gonza,Equipo1
-26/8/2025,Franco;Nacho;Gael;José MB;Leo;Fede;Hernán;Juan C,Fer F;René;Walter;Nacho R;Diego;Ponja;Fer MB;José A,Equipo1
-1/9/2025,Franco;Fer MB;Nacho;Gael;Ponja;Juan C;Fede;Walter;José A,Leo;Diego;Fer F;Nacho R;Santi A;José MB;René;Gonza;Hernán,Equipo2
-15/9/2025,Fer F;Gonza;Ponja;Nacho;Andrés;Fer MB;Nacho R;Leo,Hernán;Walter;José A;René;Gael;José MB;Juan C;Fede,Equipo1
+26/8/2025,Franco;Nacho F;Gael;José MB;Leo;Fede;Hernán;Juan C,Fer F;René;Walter;Nacho R;Diego;Ponja;Fer MB;José A,Equipo1
+1/9/2025,Franco;Fer MB;Nacho F;Gael;Ponja;Juan C;Fede;Walter;José A,Leo;Diego;Fer F;Nacho R;Santi A;José MB;René;Gonza;Hernán,Equipo2
+15/9/2025,Fer F;Gonza;Ponja;Nacho F;Andrés;Fer MB;Nacho R;Leo,Hernán;Walter;José A;René;Gael;José MB;Juan C;Fede,Equipo1
 22/9/2025,José MB;René;Gael;Amigo Fer;Juan C,José A;Walter;Fer MB;Mariano;Fer F,Empate
-29/9/2025,Franco;Nacho R;Leo;Fer F;Walter;José A;Gonza;José MB,Fede;Diego;Santi DLV;Gael;Fer MB;Ponja;Nacho;René,Equipo2
-6/10/2025,Franco;Nacho R;Leo;José A;Hernán;Gael;René;Fer MB,José MB;Juan C;Gonza;Fer F;Santi DLV;Ponja;Nacho;Diego,Equipo1
-13/10/2025,Franco;Gabo;Fede;Fer MB;Fer F;Nacho;René;Juan C,José MB;Gonza;José A;Hernán;Santi DLV;Ponja;Diego;Gael,Equipo2
-27/10/2025,Diego;José MB;Fede;Fer F;Nacho;René;Leo;Gonza;Nacho R,Walter;Franco;Fer MB;Hernán;Gael;José A;Ponja;Santi A;Gonza F,Equipo2
-3/11/2025,Franco;José MB;Gonza;José A;Hernán;Ponja;Gael;René;Juan C,Leo;Fede;Fer MB;Fer F;Santi DLV;Nacho;Diego;Guillo;Walter,Equipo2
-10/11/2025,Franco;Fer MB;Ponja;Nacho;René;Juan C;Santi A;Walter,Leo;José MB;Gonza;José A;Santi DLV;Diego;Gael;Nacho R,Equipo2
-17/11/2025,Franco;Leo;José MB;Gonza;José A;Nacho;Gael;Walter,Fer MB;Juan C;Ponja;Hernán;René;Fede;Santi A;Nacho R,Equipo2
-24/11/2025,José A;Leo;Ponja;Fede;Fer F;Franco;Gael;Hernán,José MB;Nacho;René;Walter;Diego;Fer MB;Gonza;Gonza F,Equipo2
-1/12/2025,Franco;Fer F;Juan C;Gonza;Gael;René;Hernán,Leo;Santi DLV;José A;Nacho;Ponja;Santi A;José MB,Equipo1
-8/12/2025,Franco;Fer F;Adrián;Gonza;René;Ponja;Gabo,Santi A;Diego;Nacho;Gael;Hernán;Fede;José MB,Equipo2
-15/12/2025,Javi;Franco;Hernán;José A;Nacho;Gonza;Fer MB,Paco;Guillo;Leo;Fede;José MB;Santi A;Diego,Equipo1
+29/9/2025,Franco;Nacho R;Leo;Fer F;Walter;José A;Gonza;José MB,Fede;Diego;Santi DLV;Gael;Fer MB;Ponja;Nacho F;René,Equipo2
+6/10/2025,Franco;Nacho R;Leo;José A;Hernán;Gael;René;Fer MB,José MB;Juan C;Gonza;Fer F;Santi DLV;Ponja;Nacho F;Diego,Equipo1
+13/10/2025,Franco;Gabo;Fede;Fer MB;Fer F;Nacho F;René;Juan C,José MB;Gonza;José A;Hernán;Santi DLV;Ponja;Diego;Gael,Equipo2
+27/10/2025,Diego;José MB;Fede;Fer F;Nacho F;René;Leo;Gonza;Nacho R,Walter;Franco;Fer MB;Hernán;Gael;José A;Ponja;Santi A;Gonza F,Equipo2
+3/11/2025,Franco;José MB;Gonza;José A;Hernán;Ponja;Gael;René;Juan C,Leo;Fede;Fer MB;Fer F;Santi DLV;Nacho F;Diego;Guillo;Walter,Equipo2
+10/11/2025,Franco;Fer MB;Ponja;Nacho F;René;Juan C;Santi A;Walter,Leo;José MB;Gonza;José A;Santi DLV;Diego;Gael;Nacho R,Equipo2
+17/11/2025,Franco;Leo;José MB;Gonza;José A;Nacho F;Gael;Walter,Fer MB;Juan C;Ponja;Hernán;René;Fede;Santi A;Nacho R,Equipo2
+24/11/2025,José A;Leo;Ponja;Fede;Fer F;Franco;Gael;Hernán,José MB;Nacho F;René;Walter;Diego;Fer MB;Gonza;Gonza F,Equipo2
+1/12/2025,Franco;Fer F;Juan C;Gonza;Gael;René;Hernán,Leo;Santi DLV;José A;Nacho F;Ponja;Santi A;José MB,Equipo1
+8/12/2025,Franco;Fer F;Adrián;Gonza;René;Ponja;Gabo,Santi A;Diego;Nacho F;Gael;Hernán;Fede;José MB,Equipo2
+15/12/2025,Javier;Franco;Hernán;José A;Nacho F;Gonza;Fer MB,Paco;Guillo;Leo;Fede;José MB;Santi A;Diego,Equipo1
+22/12/2025,Leo;Franco;Nacho R;Hernán;René;Juan C;Adrián,Ponja;Diego;José MB;Fer F;Nacho F;Gonza;Walter;José A,Equipo1
+5/1/2026,Diego;Leo;Nacho F;René;Ponja;Juan C;Gonza,Javier;José A;José MB;Santi A;Gael;Adrián;Joaquín M,Equipo2
+2/2/2026,Franco;Amigo Fede;Juan C;Nacho F;Gonza;Ponja;Fer MB;Fede,Amigo Gael;Gael;Hernán;Diego;José A;Fer F;René;José MB,Equipo1
+9/2/2026,Franco;Gonza;Guillo;Mariano amigo Gael;Gael;René;José A,Hernán;Diego;José MB;Ponja;Fer F;Fede;Fer MB,Equipo2
+23/2/2026,Leo;José MB;Gael;José A;Nacho F;Hernán;Franco;Fede,Nacho R;Fer F;René;Walter;Diego;Ponja;Gonza;Santi,Equipo2
+2/3/2026,José A;Diego;José MB;Juan C;Hernán;Amigo José A;Javier,Fer F;Ponja;Fer MB;Franco;Fede;Santi A;Nacho,Equipo2
+16/3/2026,Fede;Adrián;Francis;Fer F;Gael;Nacho R;Ponja,Franco;José A;José MB;Leo;Juan C;Santi DLV;Feliciano,Equipo1
+6/4/2026,Diego;Hernán;Leo;Nacho F;Juan C;Fer F;Nico K,Franco;José MB;Santi A;Gael;Santi DLV;Ponja;Adrián,Equipo2
+13/4/2026,Leo;Diego;Ponja;Fer MB;Juan C;Hernán;José MB,Gael;José A;Nacho F;Adrián;Franco;Fer F;Gonza F,Empate

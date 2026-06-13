@@ -47,17 +47,16 @@ def cargar_configuracion(config_path="config.json"):
     return config
 
 
-def contar_partidos_y_victorias(historial_path):
+def contar_partidos_y_victorias_desde_dataframe(df):
     """
-    Cuenta cuántos partidos ha jugado y ganado cada jugador.
+    Cuenta cuántos partidos ha jugado y ganado cada jugador desde un DataFrame.
 
     Args:
-        historial_path: Ruta al archivo CSV con el historial de partidos
+        df: DataFrame con el historial de partidos
 
     Returns:
         tuple: (dict_partidos, dict_victorias) donde cada diccionario tiene jugador como clave
     """
-    df = pd.read_csv(historial_path)
     partidos = defaultdict(int)
     victorias = defaultdict(int)
 
@@ -81,8 +80,30 @@ def contar_partidos_y_victorias(historial_path):
     return dict(partidos), dict(victorias)
 
 
-def actualizar_elo(historial_path):
+def contar_partidos_y_victorias(historial_path):
+    """
+    Cuenta cuántos partidos ha jugado y ganado cada jugador.
+
+    Args:
+        historial_path: Ruta al archivo CSV con el historial de partidos
+
+    Returns:
+        tuple: (dict_partidos, dict_victorias) donde cada diccionario tiene jugador como clave
+    """
     df = pd.read_csv(historial_path)
+    return contar_partidos_y_victorias_desde_dataframe(df)
+
+
+def actualizar_elo_desde_dataframe(df):
+    """
+    Actualiza los ratings TrueSkill desde un DataFrame de historial.
+
+    Args:
+        df: DataFrame con el historial de partidos
+
+    Returns:
+        dict: Ratings actualizados por jugador
+    """
     ratings = defaultdict(Rating)
 
     for _, row in df.iterrows():
@@ -107,27 +128,82 @@ def actualizar_elo(historial_path):
     return dict(ratings)
 
 
-def mostrar_ranking(ratings, historial_path=None, min_partidos=0):
+def actualizar_elo(historial_path):
+    df = pd.read_csv(historial_path)
+    return actualizar_elo_desde_dataframe(df)
+
+
+def calcular_evolucion_elo_desde_dataframe(df):
+    """
+    Calcula la evolución de rating por jugador partido a partido.
+
+    Args:
+        df: DataFrame con el historial de partidos
+
+    Returns:
+        DataFrame con Partido, Fecha, Jugador, Mu y Sigma
+    """
+    ratings = defaultdict(Rating)
+    registros = []
+
+    for idx, row in df.iterrows():
+        t1 = parse_team(row["Equipo1"])
+        t2 = parse_team(row["Equipo2"])
+        r1 = [ratings[p] for p in t1]
+        r2 = [ratings[p] for p in t2]
+
+        if row["Ganador"] == "Equipo1":
+            ranks = [0, 1]
+        elif row["Ganador"] == "Equipo2":
+            ranks = [1, 0]
+        else:
+            ranks = [0, 0]
+
+        new_r1, new_r2 = rate([r1, r2], ranks=ranks)
+        for p, r in zip(t1, new_r1):
+            ratings[p] = r
+        for p, r in zip(t2, new_r2):
+            ratings[p] = r
+
+        for jugador in sorted(set(t1 + t2)):
+            rating = ratings[jugador]
+            registros.append(
+                {
+                    "Partido": idx + 1,
+                    "Fecha": row["Fecha"],
+                    "Jugador": jugador,
+                    "Mu": round(rating.mu, 1),
+                    "Sigma": round(rating.sigma, 1),
+                }
+            )
+
+    return pd.DataFrame(registros)
+
+
+def mostrar_ranking_desde_dataframe(ratings, df=None, min_partidos=0):
     """
     Muestra el ranking de jugadores, opcionalmente filtrado por mínimo de partidos.
 
     Args:
         ratings: Diccionario con los ratings de los jugadores
-        historial_path: Ruta al archivo CSV con el historial (opcional)
+        df: DataFrame con el historial (opcional)
         min_partidos: Número mínimo de partidos para mostrar al jugador
 
     Returns:
         list: Lista ordenada de tuplas (jugador, mu, sigma, partidos, victorias)
     """
-    if min_partidos > 0 and historial_path:
-        partidos, victorias = contar_partidos_y_victorias(historial_path)
+    if df is not None:
+        partidos, victorias = contar_partidos_y_victorias_desde_dataframe(df)
+    else:
+        partidos = {}
+        victorias = {}
+
+    if min_partidos > 0 and df is not None:
         jugadores_filtrados = {
             p: r for p, r in ratings.items() if partidos.get(p, 0) >= min_partidos
         }
     else:
         jugadores_filtrados = ratings
-        partidos = {}
-        victorias = {}
 
     return sorted(
         [
@@ -143,6 +219,22 @@ def mostrar_ranking(ratings, historial_path=None, min_partidos=0):
         key=lambda x: x[1],
         reverse=True,
     )
+
+
+def mostrar_ranking(ratings, historial_path=None, min_partidos=0):
+    """
+    Muestra el ranking de jugadores, opcionalmente filtrado por mínimo de partidos.
+
+    Args:
+        ratings: Diccionario con los ratings de los jugadores
+        historial_path: Ruta al archivo CSV con el historial (opcional)
+        min_partidos: Número mínimo de partidos para mostrar al jugador
+
+    Returns:
+        list: Lista ordenada de tuplas (jugador, mu, sigma, partidos, victorias)
+    """
+    df = pd.read_csv(historial_path) if historial_path else None
+    return mostrar_ranking_desde_dataframe(ratings, df, min_partidos)
 
 
 def crear_equipos_balanceados(jugadores, ratings, jugadores_por_equipo=5, restricciones_mismo_equipo=None, restricciones_distinto_equipo=None):

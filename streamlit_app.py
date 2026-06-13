@@ -10,11 +10,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import streamlit as st
+from trueskill import Rating
 
 from elo_calculator import (
     actualizar_elo,
+    actualizar_elo_desde_dataframe,
+    calcular_evolucion_elo_desde_dataframe,
     crear_equipos_balanceados,
     mostrar_ranking,
+    mostrar_ranking_desde_dataframe,
     parse_team,
 )
 from matriz_jugadores import (
@@ -121,6 +125,169 @@ def mostrar_top_bottom(df_stats: pd.DataFrame, title: str, n: int = 10) -> None:
         st.dataframe(bottom.reset_index(drop=True), use_container_width=True)
 
 
+def calcular_stats_recientes(df: pd.DataFrame, ultimos_n: int) -> pd.DataFrame:
+    """Calcula partidos, victorias y winrate en los últimos N partidos."""
+    stats: dict[str, dict[str, int]] = defaultdict(lambda: {"partidos": 0, "victorias": 0})
+    if df.empty:
+        return pd.DataFrame(columns=["Jugador", "Reciente"])
+
+    for _, row in df.tail(ultimos_n).iterrows():
+        equipo1 = parse_team(row["Equipo1"])
+        equipo2 = parse_team(row["Equipo2"])
+        for jugador in equipo1 + equipo2:
+            stats[jugador]["partidos"] += 1
+
+        if row["Ganador"] == "Equipo1":
+            for jugador in equipo1:
+                stats[jugador]["victorias"] += 1
+        elif row["Ganador"] == "Equipo2":
+            for jugador in equipo2:
+                stats[jugador]["victorias"] += 1
+
+    records = []
+    for jugador, vals in stats.items():
+        partidos = vals["partidos"]
+        victorias = vals["victorias"]
+        winrate = (victorias / partidos * 100) if partidos else 0
+        records.append(
+            {
+                "Jugador": jugador,
+                "Reciente": f"{victorias}-{partidos - victorias} ({winrate:.1f}%)",
+            }
+        )
+    return pd.DataFrame(records)
+
+
+def calcular_df_ranking(
+    df: pd.DataFrame,
+    data_path: Path | None = None,
+    min_partidos: int = 5,
+    ultimos_n: int = 10,
+) -> pd.DataFrame:
+    """Devuelve el ranking listo para mostrar en Streamlit."""
+    if df.empty:
+        return pd.DataFrame()
+
+    if data_path is not None:
+        ratings = actualizar_elo(str(data_path))
+        ranking = mostrar_ranking(ratings, str(data_path), min_partidos=min_partidos)
+    else:
+        ratings = actualizar_elo_desde_dataframe(df)
+        ranking = mostrar_ranking_desde_dataframe(ratings, df, min_partidos=min_partidos)
+
+    df_rank = pd.DataFrame(
+        ranking, columns=["Jugador", "Mu", "Sigma", "Partidos", "Victorias"]
+    )
+    if df_rank.empty:
+        return df_rank
+
+    if len(df) > 1:
+        df_previo = df.iloc[:-1].copy()
+        ratings_previos = actualizar_elo_desde_dataframe(df_previo)
+        ranking_previo = mostrar_ranking_desde_dataframe(
+            ratings_previos, df_previo, min_partidos=min_partidos
+        )
+        posiciones_previas = {
+            jugador: posicion
+            for posicion, (jugador, *_resto) in enumerate(ranking_previo, start=1)
+        }
+        cambios = []
+        for posicion_actual, jugador in enumerate(df_rank["Jugador"], start=1):
+            posicion_previa = posiciones_previas.get(jugador)
+            cambio = (
+                None
+                if posicion_previa is None
+                else posicion_previa - posicion_actual
+            )
+            cambios.append(_formatear_cambio_posicion(cambio))
+        df_rank["Cambio"] = cambios
+    else:
+        df_rank["Cambio"] = "Nuevo"
+
+    df_rank["Derrotas"] = df_rank["Partidos"] - df_rank["Victorias"]
+    df_rank["Récord"] = (
+        df_rank["Victorias"].astype(str) + "-" + df_rank["Derrotas"].astype(str)
+    )
+    df_rank["Win %"] = (df_rank["Victorias"] / df_rank["Partidos"].clip(lower=1)) * 100
+    df_rank["Win %"] = df_rank["Win %"].round(1)
+
+    recientes = calcular_stats_recientes(df, ultimos_n)
+    if not recientes.empty:
+        df_rank = df_rank.merge(recientes, on="Jugador", how="left")
+    else:
+        df_rank["Reciente"] = "-"
+    df_rank["Reciente"] = df_rank["Reciente"].fillna("-")
+
+    return df_rank[
+        ["Jugador", "Cambio", "Mu", "Sigma", "Récord", "Partidos", "Victorias", "Win %", "Reciente"]
+    ]
+
+
+def mu_promedio_equipo(equipo: list[str], ratings: dict) -> float:
+    """Calcula el Mu promedio de un equipo."""
+    if not equipo:
+        return 0.0
+    return sum(ratings.get(jugador, Rating()).mu for jugador in equipo) / len(equipo)
+
+
+def detalle_equipo(equipo: list[str], ratings: dict) -> pd.DataFrame:
+    """Devuelve jugadores de un equipo con rating para mostrar en tablas."""
+    return pd.DataFrame(
+        [
+            {
+                "Jugador": jugador,
+                "Mu": round(ratings.get(jugador, Rating()).mu, 1),
+                "Sigma": round(ratings.get(jugador, Rating()).sigma, 1),
+            }
+            for jugador in equipo
+        ]
+    )
+
+
+def texto_whatsapp_equipos(eq1: list[str], eq2: list[str]) -> str:
+    """Devuelve equipos en formato fácil de copiar a WhatsApp."""
+    claras = ";".join(eq1)
+    oscuras = ";".join(eq2)
+    return f"Clara:\n{claras}\n\nOscura:\n{oscuras}"
+
+
+def render_resumen_ultimo_partido(df: pd.DataFrame) -> None:
+    """Muestra un resumen compacto del último partido cargado."""
+    if df.empty:
+        return
+
+    ultimo = df.iloc[-1]
+    numero_partido = len(df)
+    equipo1 = parse_team(ultimo["Equipo1"])
+    equipo2 = parse_team(ultimo["Equipo2"])
+
+    st.subheader("Último partido")
+    cols = st.columns(4)
+    cols[0].metric("Partido", f"#{numero_partido}")
+    cols[1].metric("Fecha", str(ultimo["Fecha"]))
+    cols[2].metric("Resultado", str(ultimo["Ganador"]))
+    cols[3].metric("Jugadores", len(set(equipo1 + equipo2)))
+
+    ratings_despues = actualizar_elo_desde_dataframe(df)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Equipo 1 - Mu promedio", f"{mu_promedio_equipo(equipo1, ratings_despues):.1f}")
+        st.dataframe(
+            detalle_equipo(equipo1, ratings_despues).style.format(
+                {"Mu": "{:.1f}", "Sigma": "{:.1f}"}
+            ),
+            use_container_width=True,
+        )
+    with col2:
+        st.metric("Equipo 2 - Mu promedio", f"{mu_promedio_equipo(equipo2, ratings_despues):.1f}")
+        st.dataframe(
+            detalle_equipo(equipo2, ratings_despues).style.format(
+                {"Mu": "{:.1f}", "Sigma": "{:.1f}"}
+            ),
+            use_container_width=True,
+        )
+
+
 def render_stats_jugador(df: pd.DataFrame, data_path: Path) -> None:
     st.subheader("Estadísticas por jugador")
     if df.empty:
@@ -203,13 +370,40 @@ def render_historial(df: pd.DataFrame) -> None:
 
     jugador = st.text_input("Filtrar por jugador (opcional)")
     filtered = df.copy()
+    filtered["Partido"] = filtered.index + 1
+    filtered = filtered[
+        ["Partido"] + [col for col in filtered.columns if col != "Partido"]
+    ]
     if jugador:
         filtered = filtered[
             filtered["Equipo1"].str.contains(jugador, case=False)
             | filtered["Equipo2"].str.contains(jugador, case=False)
         ]
-    st.dataframe(filtered.sort_values("Fecha", ascending=False), use_container_width=True)
+    st.dataframe(
+        filtered.sort_values("Partido", ascending=False),
+        use_container_width=True,
+    )
     st.caption(f"Total partidos: {len(filtered)}")
+
+
+def _formatear_cambio_posicion(cambio: int | None) -> str:
+    """Devuelve el texto visible para el cambio de ranking."""
+    if cambio is None:
+        return "Nuevo"
+    if cambio > 0:
+        return f"▲ {cambio}"
+    if cambio < 0:
+        return f"▼ {abs(cambio)}"
+    return "→ 0"
+
+
+def _color_cambio_posicion(valor: str) -> str:
+    """Colorea la columna de cambio según subió o bajó posiciones."""
+    if valor.startswith("▲"):
+        return "color: #148a3b; font-weight: 700"
+    if valor.startswith("▼"):
+        return "color: #c7362f; font-weight: 700"
+    return "color: #6b7280"
 
 
 def render_ranking(df: pd.DataFrame, min_partidos: int, data_path: Path) -> None:
@@ -218,20 +412,67 @@ def render_ranking(df: pd.DataFrame, min_partidos: int, data_path: Path) -> None
         st.info("Sube data para calcular el ranking.")
         return
 
-    ratings = actualizar_elo(str(data_path))
-    ranking = mostrar_ranking(ratings, str(data_path), min_partidos=min_partidos)
-    if not ranking:
+    col1, col2 = st.columns(2)
+    with col1:
+        min_partidos_ui = st.slider(
+            "Mínimo de partidos",
+            1,
+            max(1, len(df)),
+            min(min_partidos, max(1, len(df))),
+        )
+    with col2:
+        max_recientes = max(1, min(20, len(df)))
+        ultimos_n = st.slider(
+            "Forma reciente",
+            1,
+            max_recientes,
+            min(10, max_recientes),
+        )
+
+    df_rank = calcular_df_ranking(
+        df,
+        data_path=data_path,
+        min_partidos=min_partidos_ui,
+        ultimos_n=ultimos_n,
+    )
+    if df_rank.empty:
         st.info("No hay jugadores con los criterios elegidos.")
         return
 
-    df_rank = pd.DataFrame(
-        ranking, columns=["Jugador", "Mu", "Sigma", "Partidos", "Victorias"]
-    )
-    df_rank["Win %"] = (df_rank["Victorias"] / df_rank["Partidos"].clip(lower=1)) * 100
-    df_rank["Win %"] = df_rank["Win %"].round(1)
     df_rank.index = range(1, len(df_rank) + 1)
     df_rank.index.name = "#"
-    st.dataframe(df_rank, use_container_width=True)
+    st.dataframe(
+        df_rank.style.map(_color_cambio_posicion, subset=["Cambio"]).format(
+            {
+                "Mu": "{:.1f}",
+                "Sigma": "{:.1f}",
+                "Win %": "{:.1f}",
+            }
+        ),
+        use_container_width=True,
+    )
+
+    st.markdown("#### Evolución")
+    jugadores_default = df_rank["Jugador"].head(5).tolist()
+    seleccion = st.multiselect(
+        "Jugadores",
+        options=obtener_jugadores(df),
+        default=jugadores_default,
+        key="ranking_evolucion_jugadores",
+    )
+    if not seleccion:
+        st.info("Seleccioná al menos un jugador para ver la evolución.")
+        return
+
+    evolucion = calcular_evolucion_elo_desde_dataframe(df)
+    evolucion = evolucion[evolucion["Jugador"].isin(seleccion)]
+    if evolucion.empty:
+        st.info("No hay datos de evolución para los jugadores seleccionados.")
+        return
+    st.line_chart(
+        evolucion.pivot_table(index="Partido", columns="Jugador", values="Mu"),
+        use_container_width=True,
+    )
 
 
 def obtener_jugadores(df: pd.DataFrame) -> list[str]:
@@ -370,7 +611,7 @@ def render_equipos(df: pd.DataFrame, data_path: Path) -> None:
             st.error("Necesitas al menos 4 jugadores.")
             return
         if len(seleccion) % 2 != 0:
-            st.warning("Cantidad impar de jugadores: uno quedará fuera.")
+            st.warning("Cantidad impar de jugadores: un equipo tendrá uno más.")
         jugadores_por_equipo = len(seleccion) // 2
         ratings = actualizar_elo(str(data_path))
         try:
@@ -383,10 +624,25 @@ def render_equipos(df: pd.DataFrame, data_path: Path) -> None:
             )
             st.success(f"Calidad del partido: {calidad:.2%}")
             col1, col2 = st.columns(2)
-            col1.write("**Equipo 1**")
-            col1.write("; ".join(eq1))
-            col2.write("**Equipo 2**")
-            col2.write("; ".join(eq2))
+            with col1:
+                st.metric("Equipo 1 - Mu promedio", f"{mu_promedio_equipo(eq1, ratings):.1f}")
+                st.dataframe(
+                    detalle_equipo(eq1, ratings).style.format(
+                        {"Mu": "{:.1f}", "Sigma": "{:.1f}"}
+                    ),
+                    use_container_width=True,
+                )
+            with col2:
+                st.metric("Equipo 2 - Mu promedio", f"{mu_promedio_equipo(eq2, ratings):.1f}")
+                st.dataframe(
+                    detalle_equipo(eq2, ratings).style.format(
+                        {"Mu": "{:.1f}", "Sigma": "{:.1f}"}
+                    ),
+                    use_container_width=True,
+                )
+
+            st.markdown("#### Copiar para WhatsApp")
+            st.code(texto_whatsapp_equipos(eq1, eq2), language="text")
 
             # Sugerencias de afinidad
             altos, bajos = generar_sugerencias_parejas(seleccion, data_path)
@@ -477,32 +733,81 @@ def render_graficos() -> None:
 
 def render_agregar_data(df: pd.DataFrame, data_path: Path) -> None:
     st.subheader("Agregar data")
-    with st.form("form-partido"):
-        fecha = st.text_input("Fecha", placeholder="dd/mm/aaaa")
-        equipo1 = st.text_input("Equipo1", placeholder="Jugador1; Jugador2; ...")
-        equipo2 = st.text_input("Equipo2", placeholder="JugadorA; JugadorB; ...")
-        ganador = st.selectbox("Ganador", options=["Equipo1", "Equipo2", "Empate"])
-        submitted = st.form_submit_button("Agregar partido")
+    jugadores = obtener_jugadores(df)
+    tab_guiada, tab_manual = st.tabs(["Carga guiada", "Manual / CSV"])
 
-    if submitted:
-        if not (fecha and equipo1 and equipo2):
-            st.error("Completa todos los campos.")
-            return
-        nuevo = pd.DataFrame(
-            [{"Fecha": fecha, "Equipo1": equipo1, "Equipo2": equipo2, "Ganador": ganador}]
-        )
-        updated = pd.concat([df, nuevo], ignore_index=True)
-        updated.to_csv(data_path, index=False)
-        st.success("Partido agregado a data.csv")
-        st.dataframe(updated.tail(5), use_container_width=True)
+    with tab_guiada:
+        with st.form("form-partido-guiado"):
+            fecha = st.text_input("Fecha", placeholder="dd/mm/aaaa", key="fecha_guiada")
+            equipo1_sel = st.multiselect("Equipo 1", options=jugadores, key="equipo1_guiado")
+            equipo2_sel = st.multiselect("Equipo 2", options=jugadores, key="equipo2_guiado")
+            ganador = st.selectbox(
+                "Ganador",
+                options=["Equipo1", "Equipo2", "Empate"],
+                key="ganador_guiado",
+            )
+            submitted_guiado = st.form_submit_button("Agregar partido")
 
-    st.markdown("---")
-    st.markdown("Carga CSV completo")
-    file = st.file_uploader("Reemplazar data.csv", type=["csv"])
-    if file is not None:
-        new_df = pd.read_csv(file)
-        new_df.to_csv(data_path, index=False)
-        st.success(f"Se guardaron {len(new_df)} filas en data.csv")
+        if submitted_guiado:
+            repetidos = sorted(set(equipo1_sel) & set(equipo2_sel))
+            if not fecha or not equipo1_sel or not equipo2_sel:
+                st.error("Completá fecha y ambos equipos.")
+                return
+            if repetidos:
+                st.error(f"Jugadores repetidos en ambos equipos: {', '.join(repetidos)}")
+                return
+            nuevo = pd.DataFrame(
+                [
+                    {
+                        "Fecha": fecha,
+                        "Equipo1": ";".join(equipo1_sel),
+                        "Equipo2": ";".join(equipo2_sel),
+                        "Ganador": ganador,
+                    }
+                ]
+            )
+            updated = pd.concat([df, nuevo], ignore_index=True)
+            updated.to_csv(data_path, index=False)
+            st.success("Partido agregado a data.csv")
+            st.dataframe(updated.tail(5), use_container_width=True)
+
+    with tab_manual:
+        with st.form("form-partido-manual"):
+            fecha = st.text_input("Fecha", placeholder="dd/mm/aaaa", key="fecha_manual")
+            equipo1 = st.text_input("Equipo1", placeholder="Jugador1; Jugador2; ...")
+            equipo2 = st.text_input("Equipo2", placeholder="JugadorA; JugadorB; ...")
+            ganador = st.selectbox(
+                "Ganador",
+                options=["Equipo1", "Equipo2", "Empate"],
+                key="ganador_manual",
+            )
+            submitted_manual = st.form_submit_button("Agregar partido")
+
+        if submitted_manual:
+            if not (fecha and equipo1 and equipo2):
+                st.error("Completa todos los campos.")
+                return
+            equipo1_jugadores = parse_team(equipo1)
+            equipo2_jugadores = parse_team(equipo2)
+            repetidos = sorted(set(equipo1_jugadores) & set(equipo2_jugadores))
+            if repetidos:
+                st.error(f"Jugadores repetidos en ambos equipos: {', '.join(repetidos)}")
+                return
+            nuevo = pd.DataFrame(
+                [{"Fecha": fecha, "Equipo1": equipo1, "Equipo2": equipo2, "Ganador": ganador}]
+            )
+            updated = pd.concat([df, nuevo], ignore_index=True)
+            updated.to_csv(data_path, index=False)
+            st.success("Partido agregado a data.csv")
+            st.dataframe(updated.tail(5), use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("Carga CSV completo")
+        file = st.file_uploader("Reemplazar data.csv", type=["csv"])
+        if file is not None:
+            new_df = pd.read_csv(file)
+            new_df.to_csv(data_path, index=False)
+            st.success(f"Se guardaron {len(new_df)} filas en data.csv")
 
 
 def main() -> None:
@@ -514,6 +819,7 @@ def main() -> None:
 
     df = load_data(data_path)
     st.session_state["data_path"] = data_path
+    render_resumen_ultimo_partido(df)
 
     tabs = st.tabs(
         [

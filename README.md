@@ -69,6 +69,33 @@ El script:
 uv run streamlit run streamlit_app.py
 ```
 
+### Cargar partidos desde la app
+
+En la pestaña **Cargar partido**:
+
+- **Pegar mensaje de WhatsApp**: pegás el mensaje `Clara: ... / Oscura: ...` que genera "Armar equipos"
+  (aunque lo hayan editado: tolera comas, un nombre por línea, emojis, mayúsculas y acentos),
+  elegís quién ganó y guardás. Avisa si hay nombres que nunca jugaron (posible error de tipeo).
+- **Elegir jugadores**: lo mismo pero eligiendo a mano.
+- **Editar / borrar**: corrige fecha, equipos o ganador de cualquier partido, o lo borra (pide confirmación).
+
+En Streamlit Cloud el disco se borra en cada reinicio, así que cada cambio se guarda como un commit
+de `data.csv` en GitHub (queda el historial completo y se puede revertir). Configuración, una sola vez:
+
+1. En GitHub → Settings → Developer settings → Fine-grained tokens, crear un token con acceso
+   solo a este repo y permiso **Contents: Read and write**.
+2. En Streamlit Cloud → la app → Settings → Secrets, pegar el contenido de
+   `.streamlit/secrets.example.toml` con el token y una contraseña.
+
+Sin secrets (uso local) los cambios se escriben en el `data.csv` local.
+
+### Tests
+
+```bash
+uv pip install pytest
+uv run pytest tests
+```
+
 ## Características
 
 - **Sistema de rating TrueSkill**: Calcula el nivel de cada jugador basándose en el historial

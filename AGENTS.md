@@ -21,7 +21,7 @@
 ## Pruebas y validación
 - No hay suite automática; valida corriendo `python elo_calculator.py` con un `config.json` pequeño y revisando que ranking y equipos se calculen sin excepciones.
 - Para cambios en análisis de datos, prueba con subconjuntos de `data.csv` y verifica que las imágenes se generan (se guardan en raíz).
-- Si agregas tests, usa `pytest` y ubícalos en `tests/` (no existe aún).
+- Tests con `pytest` en `tests/` (`uv run pytest tests`); cubren el parser de WhatsApp y la edición del CSV (`carga_partidos.py`).
 
 ## Datos y seguridad
 - `data.csv` puede contener información sensible del grupo; no compartirlo públicamente.

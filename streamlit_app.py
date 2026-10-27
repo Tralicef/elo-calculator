@@ -1,17 +1,32 @@
 from __future__ import annotations
 
+import hmac
+import io
 import json
 from collections import defaultdict
+from datetime import date, timedelta
 from itertools import combinations
 from pathlib import Path
 from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import requests
 import seaborn as sns
 import streamlit as st
 from trueskill import Rating
 
+from carga_partidos import (
+    COLUMNAS,
+    GANADORES,
+    agregar_partido,
+    armar_partido,
+    borrar_partido,
+    editar_partido,
+    formatear_fecha,
+    parsear_mensaje_whatsapp,
+    texto_whatsapp_equipos,
+)
 from elo_calculator import (
     actualizar_elo,
     actualizar_elo_desde_dataframe,
@@ -25,6 +40,7 @@ from matriz_jugadores import (
     crear_matriz_ponderada_correcta,
     procesar_datos_partidos,
 )
+from repositorio_github import ConflictoError, guardar_archivo, leer_archivo
 
 
 IMAGE_FILES = [
@@ -42,11 +58,71 @@ IMAGE_FILES = [
 ]
 
 
-def load_data(path: Path) -> pd.DataFrame:
-    if path.exists():
-        return pd.read_csv(path)
-    st.info(f"No se encontró {path}. Sube data en la pestaña 'Agregar data'.")
-    return pd.DataFrame(columns=["Fecha", "Equipo1", "Equipo2", "Ganador"])
+ETIQUETAS_GANADOR = {
+    "Equipo1": "Clara (Equipo 1)",
+    "Equipo2": "Oscura (Equipo 2)",
+    "Empate": "Empate",
+}
+GANADOR_POR_ETIQUETA = {etiqueta: ganador for ganador, etiqueta in ETIQUETAS_GANADOR.items()}
+
+
+def leer_secret(clave: str):
+    """Lee un valor de st.secrets sin mostrar errores si no existe secrets.toml."""
+    try:
+        if not st.secrets.load_if_toml_exists():
+            return None
+        return st.secrets.get(clave)
+    except Exception:
+        return None
+
+
+def config_github() -> dict | None:
+    """Config de GitHub desde st.secrets; None si no está (se usa el data.csv local)."""
+    cfg = leer_secret("github")
+    if not cfg or not cfg.get("token") or not cfg.get("repo"):
+        return None
+    return {
+        "token": cfg["token"],
+        "repo": cfg["repo"],
+        "rama": cfg.get("branch", "main"),
+        "ruta": cfg.get("path", "data.csv"),
+    }
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _leer_github(token: str, repo: str, ruta: str, rama: str) -> tuple[str, str]:
+    return leer_archivo(token, repo, ruta, rama)
+
+
+def leer_historial(data_path: Path) -> tuple[str, str | None]:
+    """Devuelve (contenido del CSV, sha en GitHub o None si es local)."""
+    cfg = config_github()
+    if cfg:
+        return _leer_github(cfg["token"], cfg["repo"], cfg["ruta"], cfg["rama"])
+    if data_path.exists():
+        return data_path.read_bytes().decode("utf-8"), None
+    st.info(f"No se encontró {data_path}. Cargá partidos en la pestaña 'Cargar partido'.")
+    return ",".join(COLUMNAS) + "\n", None
+
+
+def guardar_historial(data_path: Path, contenido: str, sha: str | None, mensaje: str) -> None:
+    """Guarda el CSV: commit en GitHub si está configurado, si no en disco."""
+    cfg = config_github()
+    if cfg:
+        guardar_archivo(
+            cfg["token"], cfg["repo"], cfg["ruta"], cfg["rama"], contenido, sha, mensaje
+        )
+        _leer_github.clear()
+    else:
+        data_path.write_bytes(contenido.encode("utf-8"))
+
+
+def password_ok(ingresada: str) -> bool:
+    """Valida la contraseña de carga (si no hay `admin_password` en secrets, no se pide)."""
+    esperada = leer_secret("admin_password")
+    if not esperada:
+        return True
+    return hmac.compare_digest(ingresada.encode("utf-8"), str(esperada).encode("utf-8"))
 
 
 def calcular_rendimiento_grupos(df: pd.DataFrame, size: int, min_partidos: int) -> pd.DataFrame:
@@ -282,13 +358,6 @@ def detalle_equipo(equipo: list[str], ratings: dict) -> pd.DataFrame:
     )
 
 
-def texto_whatsapp_equipos(eq1: list[str], eq2: list[str]) -> str:
-    """Devuelve equipos en formato fácil de copiar a WhatsApp."""
-    claras = ";".join(eq1)
-    oscuras = ";".join(eq2)
-    return f"Clara:\n{claras}\n\nOscura:\n{oscuras}"
-
-
 def render_resumen_ultimo_partido(df: pd.DataFrame) -> None:
     """Muestra un resumen compacto del último partido cargado."""
     if df.empty:
@@ -469,7 +538,6 @@ def render_ranking(df: pd.DataFrame, min_partidos: int, data_path: Path) -> None
 
     df_rank = calcular_df_ranking(
         df,
-        data_path=data_path,
         min_partidos=min_partidos_ui,
         ultimos_n=ultimos_n,
     )
@@ -571,13 +639,20 @@ def obtener_pares_por_jugador(df: pd.DataFrame, jugador: str, min_partidos: int)
 
 
 def generar_sugerencias_parejas(
-    jugadores: list[str], data_path: Path, min_partidos_par: int = 4
+    jugadores: list[str], df: pd.DataFrame, min_partidos_par: int = 4
 ) -> tuple[list[dict], list[dict]]:
     """Devuelve listas de pares con mucha o poca historia juntos."""
-    if not data_path.exists():
+    if df.empty:
         return [], []
 
-    partidos_por_jugador, combinaciones_partidos = procesar_datos_partidos(str(data_path))
+    partidos_por_jugador = defaultdict(int)
+    combinaciones_partidos = []
+    for _, row in df.iterrows():
+        e1 = parse_team(row["Equipo1"])
+        e2 = parse_team(row["Equipo2"])
+        for j in e1 + e2:
+            partidos_por_jugador[j] += 1
+        combinaciones_partidos.extend([e1, e2])
     en_data = [j for j in jugadores if partidos_por_jugador.get(j, 0) > 0]
     if len(en_data) < 2:
         return [], []
@@ -651,7 +726,7 @@ def render_equipos(df: pd.DataFrame, data_path: Path) -> None:
         if len(seleccion) % 2 != 0:
             st.warning("Cantidad impar de jugadores: un equipo tendrá uno más.")
         jugadores_por_equipo = len(seleccion) // 2
-        ratings = actualizar_elo(str(data_path))
+        ratings = actualizar_elo_desde_dataframe(df)
         try:
             eq1, eq2, calidad = crear_equipos_balanceados(
                 seleccion,
@@ -683,7 +758,7 @@ def render_equipos(df: pd.DataFrame, data_path: Path) -> None:
             st.code(texto_whatsapp_equipos(eq1, eq2), language="text")
 
             # Sugerencias de afinidad
-            altos, bajos = generar_sugerencias_parejas(seleccion, data_path)
+            altos, bajos = generar_sugerencias_parejas(seleccion, df)
             if altos or bajos:
                 st.markdown("### Sugerencias según historial (matriz ponderada)")
             if altos:
@@ -706,7 +781,7 @@ def render_graficos() -> None:
     st.subheader("Gráficos y matrices")
     st.caption("Se generan en vivo a partir de data.csv")
     data_path = st.session_state.get("data_path", Path("data.csv"))
-    df = load_data(data_path)
+    df = pd.read_csv(data_path) if data_path.exists() else pd.DataFrame(columns=COLUMNAS)
 
     if df.empty:
         st.info("Sube data para ver los gráficos.")
@@ -769,83 +844,200 @@ def render_graficos() -> None:
                 st.error(f"No se pudieron calcular {label.lower()}: {exc}")
 
 
-def render_agregar_data(df: pd.DataFrame, data_path: Path) -> None:
-    st.subheader("Agregar data")
+def ultimo_lunes() -> date:
+    """Fecha por defecto para cargar: el lunes más reciente (hoy si es lunes)."""
+    hoy = date.today()
+    return hoy - timedelta(days=hoy.weekday())
+
+
+def aplicar_cambio(
+    data_path: Path,
+    contenido: str,
+    sha: str | None,
+    clave: str,
+    mensaje_commit: str,
+    aviso: str,
+) -> None:
+    """Valida la contraseña, guarda el CSV y recarga la app mostrando `aviso`."""
+    if not password_ok(clave):
+        st.error("Contraseña incorrecta.")
+        return
+    try:
+        guardar_historial(data_path, contenido, sha, mensaje_commit)
+    except ConflictoError as exc:
+        st.error(str(exc))
+        return
+    except requests.RequestException as exc:
+        st.error(f"No se pudo guardar en GitHub: {exc}")
+        return
+    st.session_state["aviso_guardado"] = aviso
+    st.rerun()
+
+
+def form_resultado(
+    clave_form: str,
+    equipo1: list[str],
+    equipo2: list[str],
+    texto_csv: str,
+    sha: str | None,
+    data_path: Path,
+) -> None:
+    """Pide fecha, ganador y contraseña, y agrega el partido al historial."""
+    with st.form(f"form-{clave_form}"):
+        dia = st.date_input(
+            "Fecha", value=ultimo_lunes(), format="DD/MM/YYYY", key=f"fecha-{clave_form}"
+        )
+        ganador = st.radio(
+            "¿Quién ganó?",
+            list(GANADOR_POR_ETIQUETA),
+            index=None,
+            horizontal=True,
+            key=f"ganador-{clave_form}",
+        )
+        clave = st.text_input("Contraseña", type="password", key=f"clave-{clave_form}")
+        enviado = st.form_submit_button("Guardar partido", type="primary")
+
+    if not enviado:
+        return
+    if ganador is None:
+        st.error("Elegí quién ganó.")
+        return
+    try:
+        ganador = GANADOR_POR_ETIQUETA[ganador]
+        partido = armar_partido(formatear_fecha(dia), equipo1, equipo2, ganador)
+        contenido = agregar_partido(texto_csv, partido)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    aplicar_cambio(
+        data_path,
+        contenido,
+        sha,
+        clave,
+        f"Post partido {partido['Fecha']} (cargado desde la app)",
+        f"Partido del {partido['Fecha']} guardado: ganó {ETIQUETAS_GANADOR[ganador]}.",
+    )
+
+
+def mostrar_equipos_leidos(equipo1: list[str], equipo2: list[str]) -> None:
+    col1, col2 = st.columns(2)
+    for col, nombre, equipo in ((col1, "Clara", equipo1), (col2, "Oscura", equipo2)):
+        with col:
+            st.markdown(f"**{nombre}** ({len(equipo)})")
+            st.markdown("\n".join(f"- {j}" for j in equipo))
+
+
+def render_cargar_partido(
+    df: pd.DataFrame, texto_csv: str, sha: str | None, data_path: Path
+) -> None:
+    st.subheader("Cargar partido")
+    if config_github() is None:
+        st.caption(
+            "Modo local: los cambios se guardan en data.csv de esta máquina. "
+            "Para que persistan en Streamlit Cloud configurá `[github]` en los secrets."
+        )
     jugadores = obtener_jugadores(df)
-    tab_guiada, tab_manual = st.tabs(["Carga guiada", "Manual / CSV"])
+    tab_pegar, tab_elegir, tab_editar = st.tabs(
+        ["Pegar mensaje de WhatsApp", "Elegir jugadores", "Editar / borrar"]
+    )
 
-    with tab_guiada:
-        with st.form("form-partido-guiado"):
-            fecha = st.text_input("Fecha", placeholder="dd/mm/aaaa", key="fecha_guiada")
-            equipo1_sel = st.multiselect("Equipo 1", options=jugadores, key="equipo1_guiado")
-            equipo2_sel = st.multiselect("Equipo 2", options=jugadores, key="equipo2_guiado")
-            ganador = st.selectbox(
-                "Ganador",
-                options=["Equipo1", "Equipo2", "Empate"],
-                key="ganador_guiado",
+    with tab_pegar:
+        mensaje = st.text_area(
+            "Pegá el mensaje con los equipos",
+            height=200,
+            placeholder="Clara:\nJugador1;Jugador2;...\n\nOscura:\nJugadorA;JugadorB;...",
+        )
+        if mensaje.strip():
+            try:
+                equipo1, equipo2, avisos = parsear_mensaje_whatsapp(mensaje, jugadores)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                for aviso in avisos:
+                    st.warning(aviso)
+                mostrar_equipos_leidos(equipo1, equipo2)
+                form_resultado("pegar", equipo1, equipo2, texto_csv, sha, data_path)
+
+    with tab_elegir:
+        equipo1 = st.multiselect("Clara (Equipo 1)", options=jugadores, key="equipo1_guiado")
+        equipo2 = st.multiselect("Oscura (Equipo 2)", options=jugadores, key="equipo2_guiado")
+        form_resultado("elegir", equipo1, equipo2, texto_csv, sha, data_path)
+
+    with tab_editar:
+        render_editar_partido(df, texto_csv, sha, data_path)
+
+
+def render_editar_partido(
+    df: pd.DataFrame, texto_csv: str, sha: str | None, data_path: Path
+) -> None:
+    if df.empty:
+        st.info("No hay partidos cargados.")
+        return
+
+    def etiqueta(numero: int) -> str:
+        fila = df.iloc[numero - 1]
+        ganador = str(fila["Ganador"]).strip()
+        return f"#{numero} · {fila['Fecha']} · ganó {ETIQUETAS_GANADOR.get(ganador, ganador)}"
+
+    opciones = {etiqueta(n): n for n in range(len(df), 0, -1)}
+    numero = opciones[st.selectbox("Partido", list(opciones), key="editar_numero")]
+    fila = df.iloc[numero - 1]
+    ganador_actual = str(fila["Ganador"]).strip()
+
+    with st.form(f"form-editar-{numero}"):
+        fecha = st.text_input("Fecha (d/m/aaaa)", value=str(fila["Fecha"]), key=f"ed-fecha-{numero}")
+        equipo1_txt = st.text_area(
+            "Clara (Equipo 1), separados por ;", value=fila["Equipo1"], key=f"ed-eq1-{numero}"
+        )
+        equipo2_txt = st.text_area(
+            "Oscura (Equipo 2), separados por ;", value=fila["Equipo2"], key=f"ed-eq2-{numero}"
+        )
+        ganador = st.radio(
+            "¿Quién ganó?",
+            list(GANADOR_POR_ETIQUETA),
+            index=GANADORES.index(ganador_actual) if ganador_actual in GANADORES else 0,
+            horizontal=True,
+            key=f"ed-ganador-{numero}",
+        )
+        clave = st.text_input("Contraseña", type="password", key=f"ed-clave-{numero}")
+        confirmar_borrado = st.checkbox(
+            "Confirmo que quiero borrar este partido", key=f"ed-confirmar-{numero}"
+        )
+        col1, col2 = st.columns(2)
+        guardar = col1.form_submit_button("Guardar cambios", type="primary")
+        borrar = col2.form_submit_button("Borrar partido")
+
+    if guardar:
+        try:
+            partido = armar_partido(
+                fecha,
+                [j for j in parse_team(equipo1_txt) if j],
+                [j for j in parse_team(equipo2_txt) if j],
+                GANADOR_POR_ETIQUETA[ganador],
             )
-            submitted_guiado = st.form_submit_button("Agregar partido")
-
-        if submitted_guiado:
-            repetidos = sorted(set(equipo1_sel) & set(equipo2_sel))
-            if not fecha or not equipo1_sel or not equipo2_sel:
-                st.error("Completá fecha y ambos equipos.")
-                return
-            if repetidos:
-                st.error(f"Jugadores repetidos en ambos equipos: {', '.join(repetidos)}")
-                return
-            nuevo = pd.DataFrame(
-                [
-                    {
-                        "Fecha": fecha,
-                        "Equipo1": ";".join(equipo1_sel),
-                        "Equipo2": ";".join(equipo2_sel),
-                        "Ganador": ganador,
-                    }
-                ]
-            )
-            updated = pd.concat([df, nuevo], ignore_index=True)
-            updated.to_csv(data_path, index=False)
-            st.success("Partido agregado a data.csv")
-            st.dataframe(updated.tail(5), use_container_width=True)
-
-    with tab_manual:
-        with st.form("form-partido-manual"):
-            fecha = st.text_input("Fecha", placeholder="dd/mm/aaaa", key="fecha_manual")
-            equipo1 = st.text_input("Equipo1", placeholder="Jugador1; Jugador2; ...")
-            equipo2 = st.text_input("Equipo2", placeholder="JugadorA; JugadorB; ...")
-            ganador = st.selectbox(
-                "Ganador",
-                options=["Equipo1", "Equipo2", "Empate"],
-                key="ganador_manual",
-            )
-            submitted_manual = st.form_submit_button("Agregar partido")
-
-        if submitted_manual:
-            if not (fecha and equipo1 and equipo2):
-                st.error("Completa todos los campos.")
-                return
-            equipo1_jugadores = parse_team(equipo1)
-            equipo2_jugadores = parse_team(equipo2)
-            repetidos = sorted(set(equipo1_jugadores) & set(equipo2_jugadores))
-            if repetidos:
-                st.error(f"Jugadores repetidos en ambos equipos: {', '.join(repetidos)}")
-                return
-            nuevo = pd.DataFrame(
-                [{"Fecha": fecha, "Equipo1": equipo1, "Equipo2": equipo2, "Ganador": ganador}]
-            )
-            updated = pd.concat([df, nuevo], ignore_index=True)
-            updated.to_csv(data_path, index=False)
-            st.success("Partido agregado a data.csv")
-            st.dataframe(updated.tail(5), use_container_width=True)
-
-        st.markdown("---")
-        st.markdown("Carga CSV completo")
-        file = st.file_uploader("Reemplazar data.csv", type=["csv"])
-        if file is not None:
-            new_df = pd.read_csv(file)
-            new_df.to_csv(data_path, index=False)
-            st.success(f"Se guardaron {len(new_df)} filas en data.csv")
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        aplicar_cambio(
+            data_path,
+            editar_partido(texto_csv, numero, partido),
+            sha,
+            clave,
+            f"Editado partido #{numero} ({partido['Fecha']}) desde la app",
+            f"Partido #{numero} actualizado.",
+        )
+    elif borrar:
+        if not confirmar_borrado:
+            st.error("Marcá la confirmación para borrar.")
+            return
+        aplicar_cambio(
+            data_path,
+            borrar_partido(texto_csv, numero),
+            sha,
+            clave,
+            f"Borrado partido #{numero} ({fila['Fecha']}) desde la app",
+            f"Partido #{numero} ({fila['Fecha']}) borrado.",
+        )
 
 
 def main() -> None:
@@ -855,8 +1047,17 @@ def main() -> None:
     data_path = Path("data.csv")
     min_partidos = 5
 
-    df = load_data(data_path)
+    try:
+        texto_csv, sha = leer_historial(data_path)
+    except requests.RequestException as exc:
+        st.error(f"No se pudo leer data.csv de GitHub: {exc}")
+        return
+    df = pd.read_csv(io.StringIO(texto_csv))
     st.session_state["data_path"] = data_path
+
+    aviso = st.session_state.pop("aviso_guardado", None)
+    if aviso:
+        st.success(aviso)
     render_resumen_ultimo_partido(df)
 
     tabs = st.tabs(
@@ -865,7 +1066,7 @@ def main() -> None:
             "Ranking",
             "Stats jugador",
             "Armar equipos",
-            "Agregar data",
+            "Cargar partido",
         ]
     )
 
@@ -878,7 +1079,7 @@ def main() -> None:
     with tabs[3]:
         render_equipos(df, data_path)
     with tabs[4]:
-        render_agregar_data(df, data_path)
+        render_cargar_partido(df, texto_csv, sha, data_path)
 
 
 if __name__ == "__main__":

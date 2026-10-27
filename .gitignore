@@ -35,3 +35,5 @@ wheels/
 # Sistema operativo
 .DS_Store
 Thumbs.db 
+# Secrets de Streamlit
+.streamlit/secrets.toml

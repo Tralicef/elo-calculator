@@ -127,9 +127,13 @@ def password_ok(ingresada: str) -> bool:
 
 def calcular_rendimiento_grupos(df: pd.DataFrame, size: int, min_partidos: int) -> pd.DataFrame:
     """Calcula total y winrate por grupo de tamaño size."""
-    records: dict[tuple[str, ...], dict[str, int]] = defaultdict(lambda: {"total": 0, "wins": 0})
+    records: dict[tuple[str, ...], dict[str, int]] = defaultdict(
+        lambda: {"total": 0, "wins": 0, "draws": 0}
+    )
     if df.empty:
-        return pd.DataFrame(columns=["Grupo", "Partidos", "Victorias", "Winrate"])
+        return pd.DataFrame(
+            columns=["Grupo", "Partidos", "Victorias", "Derrotas", "Empates", "Winrate"]
+        )
 
     for _, row in df.iterrows():
         t1 = parse_team(row["Equipo1"])
@@ -141,22 +145,36 @@ def calcular_rendimiento_grupos(df: pd.DataFrame, size: int, min_partidos: int) 
             records[key]["total"] += 1
             if ganador == "Equipo1":
                 records[key]["wins"] += 1
+            elif ganador == "Empate":
+                records[key]["draws"] += 1
         for combo in combinations(t2, size):
             key = tuple(sorted(combo))
             records[key]["total"] += 1
             if ganador == "Equipo2":
                 records[key]["wins"] += 1
+            elif ganador == "Empate":
+                records[key]["draws"] += 1
 
     data = []
     for combo, vals in records.items():
         if vals["total"] >= min_partidos:
             winrate = vals["wins"] / vals["total"] if vals["total"] else 0
+            losses = vals["total"] - vals["wins"] - vals["draws"]
             data.append(
-                {"Grupo": "; ".join(combo), "Partidos": vals["total"], "Victorias": vals["wins"], "Winrate": winrate}
+                {
+                    "Grupo": "; ".join(combo),
+                    "Partidos": vals["total"],
+                    "Victorias": vals["wins"],
+                    "Derrotas": losses,
+                    "Empates": vals["draws"],
+                    "Winrate": winrate,
+                }
             )
 
     if not data:
-        return pd.DataFrame(columns=["Grupo", "Partidos", "Victorias", "Winrate"])
+        return pd.DataFrame(
+            columns=["Grupo", "Partidos", "Victorias", "Derrotas", "Empates", "Winrate"]
+        )
 
     df_stats = pd.DataFrame(data)
     df_stats["Winrate"] = (df_stats["Winrate"] * 100).round(1)
@@ -202,8 +220,10 @@ def mostrar_top_bottom(df_stats: pd.DataFrame, title: str, n: int = 10) -> None:
 
 
 def calcular_stats_recientes(df: pd.DataFrame, ultimos_n: int) -> pd.DataFrame:
-    """Calcula partidos, victorias y winrate en los últimos N partidos."""
-    stats: dict[str, dict[str, int]] = defaultdict(lambda: {"partidos": 0, "victorias": 0})
+    """Calcula victorias, derrotas, empates y winrate en los últimos N partidos."""
+    stats: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"partidos": 0, "victorias": 0, "empates": 0}
+    )
     if df.empty:
         return pd.DataFrame(columns=["Jugador", "Reciente"])
 
@@ -219,16 +239,21 @@ def calcular_stats_recientes(df: pd.DataFrame, ultimos_n: int) -> pd.DataFrame:
         elif row["Ganador"] == "Equipo2":
             for jugador in equipo2:
                 stats[jugador]["victorias"] += 1
+        elif row["Ganador"] == "Empate":
+            for jugador in equipo1 + equipo2:
+                stats[jugador]["empates"] += 1
 
     records = []
     for jugador, vals in stats.items():
         partidos = vals["partidos"]
         victorias = vals["victorias"]
+        empates = vals["empates"]
+        derrotas = partidos - victorias - empates
         winrate = (victorias / partidos * 100) if partidos else 0
         records.append(
             {
                 "Jugador": jugador,
-                "Reciente": f"{victorias}-{partidos - victorias} ({winrate:.1f}%)",
+                "Reciente": f"{victorias}G-{empates}E-{derrotas}P ({winrate:.1f}%)",
             }
         )
     return pd.DataFrame(records)
@@ -280,9 +305,19 @@ def calcular_df_ranking(
     else:
         df_rank["Cambio"] = "Nuevo"
 
-    df_rank["Derrotas"] = df_rank["Partidos"] - df_rank["Victorias"]
-    df_rank["Récord"] = (
-        df_rank["Victorias"].astype(str) + "-" + df_rank["Derrotas"].astype(str)
+    empates_por_jugador = defaultdict(int)
+    for _, row in df.iterrows():
+        if row["Ganador"] == "Empate":
+            for jugador in parse_team(row["Equipo1"]) + parse_team(row["Equipo2"]):
+                empates_por_jugador[jugador] += 1
+
+    df_rank["Empates"] = df_rank["Jugador"].map(empates_por_jugador).fillna(0).astype(int)
+    df_rank["Derrotas"] = (
+        df_rank["Partidos"] - df_rank["Victorias"] - df_rank["Empates"]
+    )
+    df_rank["Récord (G-E-P)"] = (
+        df_rank["Victorias"].astype(str) + "-" + df_rank["Empates"].astype(str)
+        + "-" + df_rank["Derrotas"].astype(str)
     )
     df_rank["Win %"] = (df_rank["Victorias"] / df_rank["Partidos"].clip(lower=1)) * 100
     df_rank["Win %"] = df_rank["Win %"].round(1)
@@ -295,7 +330,10 @@ def calcular_df_ranking(
     df_rank["Reciente"] = df_rank["Reciente"].fillna("-")
 
     return df_rank[
-        ["Jugador", "Cambio", "Mu", "Sigma", "Récord", "Partidos", "Victorias", "Win %", "Reciente"]
+        [
+            "Jugador", "Cambio", "Mu", "Sigma", "Récord (G-E-P)", "Partidos",
+            "Victorias", "Derrotas", "Empates", "Win %", "Reciente",
+        ]
     ]
 
 
